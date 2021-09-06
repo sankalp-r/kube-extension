@@ -1,0 +1,24 @@
+# permissions for end users to edit helmextensions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helmextension-editor-role
+rules:
+- apiGroups:
+  - extension.example.com
+  resources:
+  - helmextensions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - extension.example.com
+  resources:
+  - helmextensions/status
+  verbs:
+  - get

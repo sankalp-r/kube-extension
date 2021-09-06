@@ -1,0 +1,7 @@
+apiVersion: extension.example.com/v1alpha1
+kind: Helmextension
+metadata:
+  name: helmextension-sample
+spec:
+  # Add fields here
+  foo: bar
