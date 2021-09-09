@@ -29,9 +29,10 @@ type HelmextensionSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of Helmextension. Edit helmextension_types.go to remove/update
-	Repo string `json:"repo,omitempty"`
-	Chart string `json:"chart,omitempty"`
+	Repo    string `json:"repo,omitempty"`
+	Chart   string `json:"chart,omitempty"`
 	Version string `json:"version,omitempty"`
+	Url     string `json:"url,omitempty"`
 }
 
 // HelmextensionStatus defines the observed state of Helmextension

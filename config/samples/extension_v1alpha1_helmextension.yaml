@@ -1,7 +1,10 @@
 apiVersion: extension.example.com/v1alpha1
 kind: Helmextension
 metadata:
-  name: helmextension-sample
+  name: helmextension-nats
 spec:
   # Add fields here
-  foo: bar
+  url: https://nats-io.github.io/k8s/helm/charts
+  repo: nats
+  chart: nats
+  version: 0.8.8

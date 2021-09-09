@@ -81,6 +81,7 @@ func main() {
 	if err = (&controllers.HelmextensionReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("Helm-Extension"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Helmextension")
 		os.Exit(1)

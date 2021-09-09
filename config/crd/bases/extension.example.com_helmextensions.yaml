@@ -42,6 +42,8 @@ spec:
                 description: Foo is an example field of Helmextension. Edit helmextension_types.go
                   to remove/update
                 type: string
+              url:
+                type: string
               version:
                 type: string
             type: object

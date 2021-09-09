@@ -18,19 +18,24 @@ package controllers
 
 import (
 	"context"
-
+	"github.com/go-logr/logr"
+	extensionv1alpha1 "github.com/sankalp-r/extension-operator/api/v1alpha1"
+	"github.com/sankalp-r/extension-operator/pkg/util"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"log"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	extensionv1alpha1 "github.com/sankalp-r/extension-operator/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+const extensionFinalizer = "extension.example.com/finalizer"
 
 // HelmextensionReconciler reconciles a Helmextension object
 type HelmextensionReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 //+kubebuilder:rbac:groups=extension.example.com,resources=helmextensions,verbs=get;list;watch;create;update;patch;delete
@@ -47,10 +52,62 @@ type HelmextensionReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *HelmextensionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
 
 	// your logic here
+	log := r.Log.WithValues("helmextension", req.NamespacedName)
+	ext := &extensionv1alpha1.Helmextension{}
+	err := r.Client.Get(ctx, req.NamespacedName, ext)
 
+	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Error(err, "HelmExtension not found")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		log.Error(err, "Failed to get HelmExtension")
+		return ctrl.Result{}, err
+	}
+
+	isExtensionMarkedToBeDeleted := ext.GetDeletionTimestamp() != nil
+
+	if isExtensionMarkedToBeDeleted {
+		if controllerutil.ContainsFinalizer(ext, extensionFinalizer) {
+			err = r.finalizeExtension(ext)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			controllerutil.RemoveFinalizer(ext, extensionFinalizer)
+			err = r.Update(ctx, ext)
+			if err != nil {
+				log.Error(err, "Failed to get HelmExtension")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+	}
+
+	if !controllerutil.ContainsFinalizer(ext, extensionFinalizer) {
+		controllerutil.AddFinalizer(ext, extensionFinalizer)
+		err = r.Update(ctx, ext)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	args := make(map[string]string)
+	args["version"] = ext.Spec.Version
+	err = util.RepoAdd(ext.Spec.Repo, ext.Spec.Url)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = util.RepoUpdate()
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = util.InstallChart(ext.Name, ext.Spec.Repo, ext.Spec.Chart, args)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -59,4 +116,9 @@ func (r *HelmextensionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionv1alpha1.Helmextension{}).
 		Complete(r)
+}
+
+func (r *HelmextensionReconciler) finalizeExtension(ext *extensionv1alpha1.Helmextension) error {
+	log.Print("Deleting Helm chart")
+	return util.UnInstallChart(ext.Name)
 }
