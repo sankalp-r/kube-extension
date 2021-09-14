@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-logr/logr"
 	extensionv1alpha1 "github.com/sankalp-r/extension-operator/api/v1alpha1"
 	"github.com/sankalp-r/extension-operator/pkg/util"
@@ -27,6 +28,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 const extensionFinalizer = "extension.example.com/finalizer"
@@ -68,6 +71,8 @@ func (r *HelmextensionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	fmt.Println(ext)
+
 	isExtensionMarkedToBeDeleted := ext.GetDeletionTimestamp() != nil
 
 	if isExtensionMarkedToBeDeleted {
@@ -106,7 +111,19 @@ func (r *HelmextensionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	err = util.InstallChart(ext.Name, ext.Spec.Repo, ext.Spec.Chart, args)
 	if err != nil {
+		log.Error(err, "Error: ")
 		return ctrl.Result{}, err
+	}
+
+	res, err := util.GetReleaseStatus(ext.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	} else {
+		ext.Status.State = res
+		err = r.Status().Update(ctx, ext)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{}, nil
 }
@@ -115,6 +132,16 @@ func (r *HelmextensionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *HelmextensionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionv1alpha1.Helmextension{}).
+		WithEventFilter(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				res, _ := util.GetReleaseStatus(e.Object.GetName())
+				return res != "deployed"
+
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return e.ObjectNew.GetGeneration() != e.ObjectOld.GetGeneration()
+			},
+		}).
 		Complete(r)
 }
 

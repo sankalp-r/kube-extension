@@ -246,3 +246,19 @@ func UnInstallChart(releaseName string) error {
 	}
 	return nil
 }
+
+func GetReleaseStatus(releaseName string) (string, error) {
+
+	actionConfig := new(action.Configuration)
+	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), debug); err != nil {
+		log.Printf("Error: %v", err)
+		return "", err
+	}
+
+	client := action.NewStatus(actionConfig)
+	results, err := client.Run(releaseName)
+	if err != nil {
+		return "", err
+	}
+	return results.Info.Status.String(), nil
+}
